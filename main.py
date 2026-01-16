@@ -753,6 +753,9 @@ def generate_map(report_path, output_html, use_llm=True):
                 "United States of America": ["United States of America", "United States", "USA", "US"]
             }
             
+            # 台湾的各种可能名称（用于合并到中国）
+            taiwan_variants = ["Taiwan", "Taiwan, Province of China", "Republic of China", "TWN", "TW"]
+            
             country_variants = name_variants.get(country_name_en, [country_name_en])
             
             for url in geojson_urls:
@@ -761,19 +764,64 @@ def generate_map(report_path, output_html, use_llm=True):
                     if response.status_code == 200:
                         world_geojson = response.json()
                         # 在 GeoJSON 中查找指定国家
+                        main_feature = None
+                        taiwan_feature = None
+                        
                         for feature in world_geojson.get('features', []):
                             props = feature.get('properties', {})
-                            # 检查所有可能的名称字段和变体
-                            for variant in country_variants:
-                                if (props.get('NAME') == variant or 
-                                    props.get('NAME_LONG') == variant or
-                                    props.get('NAME_EN') == variant or
-                                    props.get('name') == variant or
-                                    props.get('NAME_ISO') == variant or
-                                    props.get('ISO_A3') == variant or
-                                    props.get('ADMIN') == variant or
-                                    props.get('admin') == variant):
-                                    return feature
+                            
+                            # 查找主国家
+                            if main_feature is None:
+                                for variant in country_variants:
+                                    if (props.get('NAME') == variant or 
+                                        props.get('NAME_LONG') == variant or
+                                        props.get('NAME_EN') == variant or
+                                        props.get('name') == variant or
+                                        props.get('NAME_ISO') == variant or
+                                        props.get('ISO_A3') == variant or
+                                        props.get('ADMIN') == variant or
+                                        props.get('admin') == variant):
+                                        main_feature = feature
+                                        break
+                            
+                            # 如果是中国，同时查找台湾
+                            if country_name_en == "China" and taiwan_feature is None:
+                                for variant in taiwan_variants:
+                                    if (props.get('NAME') == variant or 
+                                        props.get('NAME_LONG') == variant or
+                                        props.get('NAME_EN') == variant or
+                                        props.get('name') == variant or
+                                        props.get('NAME_ISO') == variant or
+                                        props.get('ISO_A3') == variant or
+                                        props.get('ADMIN') == variant or
+                                        props.get('admin') == variant):
+                                        taiwan_feature = feature
+                                        break
+                        
+                        # 如果找到主国家，尝试合并台湾
+                        if main_feature:
+                            if country_name_en == "China" and taiwan_feature:
+                                # 合并中国和台湾的几何数据
+                                import copy
+                                merged_feature = copy.deepcopy(main_feature)
+                                main_geom = merged_feature.get('geometry', {})
+                                taiwan_geom = taiwan_feature.get('geometry', {})
+                                
+                                # 如果主几何是Polygon，转换为MultiPolygon
+                                if main_geom.get('type') == 'Polygon':
+                                    main_geom['type'] = 'MultiPolygon'
+                                    main_geom['coordinates'] = [main_geom['coordinates']]
+                                
+                                # 添加台湾的几何到MultiPolygon中
+                                if main_geom.get('type') == 'MultiPolygon':
+                                    if taiwan_geom.get('type') == 'Polygon':
+                                        main_geom['coordinates'].append(taiwan_geom['coordinates'])
+                                    elif taiwan_geom.get('type') == 'MultiPolygon':
+                                        main_geom['coordinates'].extend(taiwan_geom['coordinates'])
+                                
+                                return merged_feature
+                            else:
+                                return main_feature
                 except Exception as e:
                     continue  # 尝试下一个 URL
             
@@ -814,35 +862,35 @@ def generate_map(report_path, output_html, use_llm=True):
             # 加载国家边界 GeoJSON 数据
             country_feature = load_country_geojson(country_name_en)
             
+            # 使用闭包捕获颜色值，确保样式函数使用正确的颜色
+            def make_style_function(color, w, fill_op, border_op):
+                def style_function(feature):
+                    return {
+                        'fillColor': color,
+                        'color': color,  # 边框颜色与填充颜色一致，与图例对齐
+                        'weight': w,
+                        'fillOpacity': fill_op,
+                        'opacity': border_op  # 边框完全不透明，确保颜色与图例一致
+                    }
+                return style_function
+            
+            def make_highlight_function(color, w, fill_op, border_op):
+                def highlight_function(feature):
+                    return {
+                        'fillColor': color,
+                        'color': color,  # 保持边框颜色不变
+                        'weight': w,
+                        'fillOpacity': fill_op,
+                        'opacity': border_op  # 保持边框完全不透明
+                    }
+                return highlight_function
+            
+            # 创建样式函数，确保使用正确的颜色值
+            style_func = make_style_function(highlight_color, weight, fill_opacity, border_opacity)
+            highlight_func = make_highlight_function(highlight_color, weight, fill_opacity, border_opacity)
+            
             # 只有在成功加载国家边界数据时才添加高亮
             if country_feature:
-                # 使用闭包捕获颜色值，确保样式函数使用正确的颜色
-                def make_style_function(color, w, fill_op, border_op):
-                    def style_function(feature):
-                        return {
-                            'fillColor': color,
-                            'color': color,  # 边框颜色与填充颜色一致，与图例对齐
-                            'weight': w,
-                            'fillOpacity': fill_op,
-                            'opacity': border_op  # 边框完全不透明，确保颜色与图例一致
-                        }
-                    return style_function
-                
-                def make_highlight_function(color, w, fill_op, border_op):
-                    def highlight_function(feature):
-                        return {
-                            'fillColor': color,
-                            'color': color,  # 保持边框颜色不变
-                            'weight': w,
-                            'fillOpacity': fill_op,
-                            'opacity': border_op  # 保持边框完全不透明
-                        }
-                    return highlight_function
-                
-                # 创建样式函数，确保使用正确的颜色值
-                style_func = make_style_function(highlight_color, weight, fill_opacity, border_opacity)
-                highlight_func = make_highlight_function(highlight_color, weight, fill_opacity, border_opacity)
-                
                 # 创建 GeoJson 图层（不显示点击弹窗和边框高亮，只保留悬停提示）
                 geojson_layer = folium.GeoJson(
                     country_feature,
@@ -854,6 +902,88 @@ def generate_map(report_path, output_html, use_llm=True):
                     )
                 )
                 geojson_layer.add_to(m)
+                
+                # 如果是中国，额外确保台湾也被高亮（备用方案：如果合并失败，单独添加台湾）
+                if country_name_en == "China":
+                    # 检查加载的feature是否包含台湾（通过检查几何范围是否包含台湾的大致位置）
+                    # 台湾大致位置：纬度23-25，经度119-122
+                    geom = country_feature.get('geometry', {})
+                    coords = geom.get('coordinates', [])
+                    
+                    # 简单检查：如果坐标范围不包含台湾区域，则单独加载台湾
+                    has_taiwan = False
+                    if geom.get('type') in ['Polygon', 'MultiPolygon']:
+                        def check_coords_in_taiwan_range(coords_list):
+                            """递归检查坐标是否在台湾范围内"""
+                            for coord in coords_list:
+                                if isinstance(coord[0], (int, float)):
+                                    # 这是一个坐标点 [lon, lat]
+                                    if 119 <= coord[0] <= 122 and 23 <= coord[1] <= 25:
+                                        return True
+                                else:
+                                    # 这是嵌套的坐标列表
+                                    if check_coords_in_taiwan_range(coord):
+                                        return True
+                            return False
+                        
+                        if geom.get('type') == 'Polygon':
+                            has_taiwan = check_coords_in_taiwan_range(coords)
+                        elif geom.get('type') == 'MultiPolygon':
+                            for polygon in coords:
+                                if check_coords_in_taiwan_range(polygon):
+                                    has_taiwan = True
+                                    break
+                    
+                    # 如果没有检测到台湾，单独加载并添加台湾高亮
+                    if not has_taiwan:
+                        # 单独加载台湾边界
+                        taiwan_variants = ["Taiwan", "Taiwan, Province of China", "Republic of China", "TWN", "TW"]
+                        geojson_urls = [
+                            "https://geo.datav.aliyun.com/areas_v3/bound/geojson?code=all",
+                            "https://geo.datav.aliyun.com/areas/bound/geojson?code=all",
+                            "https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson",
+                            "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+                        ]
+                        
+                        taiwan_feature = None
+                        for url in geojson_urls:
+                            try:
+                                response = requests.get(url, timeout=15)
+                                if response.status_code == 200:
+                                    world_geojson = response.json()
+                                    for feature in world_geojson.get('features', []):
+                                        props = feature.get('properties', {})
+                                        for variant in taiwan_variants:
+                                            if (props.get('NAME') == variant or 
+                                                props.get('NAME_LONG') == variant or
+                                                props.get('NAME_EN') == variant or
+                                                props.get('name') == variant or
+                                                props.get('NAME_ISO') == variant or
+                                                props.get('ISO_A3') == variant or
+                                                props.get('ADMIN') == variant or
+                                                props.get('admin') == variant):
+                                                taiwan_feature = feature
+                                                break
+                                        if taiwan_feature:
+                                            break
+                                if taiwan_feature:
+                                    break
+                            except Exception:
+                                continue
+                        
+                        # 如果找到台湾边界，添加高亮层（使用与中国相同的样式）
+                        if taiwan_feature:
+                            taiwan_layer = folium.GeoJson(
+                                taiwan_feature,
+                                style_function=style_func,
+                                highlight_function=highlight_func,
+                                tooltip=folium.Tooltip(
+                                    f"<div style='font-family: Segoe UI;'><strong>{country_name}</strong><br>GDP风险: {gdp_value}%</div>",
+                                    style="font-family: Segoe UI;"
+                                )
+                            )
+                            taiwan_layer.add_to(m)
+                            print(f"已为中国添加台湾地区高亮显示（使用相同颜色和样式）")
             else:
                 print(f"警告: 无法加载 {country_name} ({country_name_en}) 的边界数据")
             
