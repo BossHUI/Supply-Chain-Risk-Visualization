@@ -4,6 +4,7 @@ import re
 import os
 import json
 import requests
+import time
 from openai import OpenAI 
 from dotenv import load_dotenv
 load_dotenv()
@@ -16,16 +17,139 @@ client = OpenAI(
     base_url=API_BASE_URL 
 )
 
+# 坐标缓存文件路径
+COORD_CACHE_FILE = "coordinate_cache.json"
+
+def load_coordinate_cache():
+    """加载坐标缓存"""
+    if os.path.exists(COORD_CACHE_FILE):
+        try:
+            with open(COORD_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_coordinate_cache(cache):
+    """保存坐标缓存"""
+    try:
+        with open(COORD_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"保存坐标缓存失败: {e}")
+
+def geocode_location(location_name, use_cache=True):
+    """
+    使用Nominatim地理编码API获取地点坐标
+    
+    参数:
+        location_name: 地点名称（支持中文）
+        use_cache: 是否使用缓存
+    
+    返回:
+        [纬度, 经度] 或 None
+    """
+    # 加载缓存
+    cache = load_coordinate_cache() if use_cache else {}
+    
+    # 检查缓存
+    if location_name in cache:
+        print(f"  使用缓存坐标: {location_name} -> {cache[location_name]}")
+        return cache[location_name]
+    
+    # 使用Nominatim API进行地理编码
+    try:
+        # Nominatim API要求使用User-Agent，并且有速率限制（每秒1次请求）
+        headers = {
+            'User-Agent': 'SupplyChainRiskVisualization/1.0'
+        }
+        
+        # 构建查询URL
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': location_name,
+            'format': 'json',
+            'limit': 1,
+            'accept-language': 'zh-CN,zh,en'
+        }
+        
+        print(f"  正在查询坐标: {location_name}...")
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        # 遵守速率限制
+        time.sleep(1)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                lat = float(data[0]['lat'])
+                lon = float(data[0]['lon'])
+                coord = [lat, lon]
+                
+                # 保存到缓存
+                if use_cache:
+                    cache[location_name] = coord
+                    save_coordinate_cache(cache)
+                
+                print(f"  ✓ 成功获取坐标: {location_name} -> {coord}")
+                return coord
+            else:
+                print(f"  ✗ 未找到地点: {location_name}")
+                return None
+        else:
+            print(f"  ✗ 地理编码API请求失败: HTTP {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"  ✗ 地理编码失败 ({location_name}): {e}")
+        return None
+
+def get_location_coord(location_name, country_coords=None, coord_corrections=None, use_geocoding=True):
+    """
+    获取地点坐标（优先级：修正表 > 国家字典 > 地理编码API）
+    
+    参数:
+        location_name: 地点名称
+        country_coords: 国家坐标字典
+        coord_corrections: 坐标修正字典
+        use_geocoding: 是否使用地理编码API
+    
+    返回:
+        [纬度, 经度] 或 None
+    """
+    # 1. 优先检查坐标修正表（城市/地区）
+    if coord_corrections and location_name in coord_corrections:
+        return coord_corrections[location_name]
+    
+    # 2. 检查国家坐标字典
+    if country_coords and location_name in country_coords:
+        return country_coords[location_name]
+    
+    # 3. 使用地理编码API自动获取
+    if use_geocoding:
+        return geocode_location(location_name)
+    
+    return None
+
 class RiskReportParser:
-    def __init__(self, file_path):
+    def __init__(self, file_path, use_geocoding=True):
         self.file_path = file_path
         self.content = self._load_file()
-        # 预设国家中心点坐标（报告仅提供国名时使用）
+        self.use_geocoding = use_geocoding
+        # 预设国家中心点坐标（报告仅提供国名时使用，作为缓存和备用）
         self.country_coords = {
             "荷兰": [52.1326, 5.2913],
             "中国": [35.8617, 104.1954],
             "日本": [36.2048, 138.2529],
             "美国": [37.0902, -95.7129]
+        }
+        # 坐标修正表（已知城市的正确坐标）
+        self.coord_corrections = {
+            "日本福岛": [37.75, 140.47],
+            "福岛": [37.75, 140.47],
+            "越南中部": [15.0, 108.0],
+            "德国莱茵河流域": [50.0, 8.0],
+            "莱茵河": [50.0, 8.0]
         }
 
     def _load_file(self):
@@ -56,12 +180,22 @@ class RiskReportParser:
         matches = re.findall(pattern, self.content)
         data = []
         for loc, base, current in matches:
-            if loc in self.country_coords:
+            # 自动获取坐标（优先使用缓存和预设，失败则使用地理编码API）
+            coord = get_location_coord(
+                loc, 
+                country_coords=self.country_coords,
+                coord_corrections=self.coord_corrections,
+                use_geocoding=self.use_geocoding
+            )
+            
+            if coord:
                 data.append({
                     "location": loc,
-                    "coord": self.country_coords[loc],
+                    "coord": coord,
                     "gdp": int(current)
                 })
+            else:
+                print(f"警告: 无法获取 {loc} 的坐标，跳过该地点")
         return data
 
     def extract_ndp_table(self):
@@ -71,20 +205,21 @@ class RiskReportParser:
         pattern = r'\| ([\u4e00-\u9fa5]+)\s+\|\s+([\d\.]+)\s+\|\s+([^（]+)（([^）]+)）\s+\|\s+([\d%]+)\s+\|'
         matches = re.findall(pattern, self.content)
         
-        # 已知坐标
-        coord_corrections = {
-            "日本福岛": [37.75, 140.47],  # 福岛县正确坐标
-            "越南中部": [15.0, 108.0],    # 越南中部
-            "德国莱茵河流域": [50.0, 8.0]  # 德国莱茵河
-        }
-        
         data = []
         for hazard, prob, city, dms, contrib in matches:
             city_clean = city.strip()
-            if city_clean in coord_corrections:
-                coord = coord_corrections[city_clean]
-            else:
-                coord = self.parse_dms(dms)
+            
+            # 优先解析度分秒坐标
+            coord = self.parse_dms(dms)
+            
+            # 如果度分秒解析失败，尝试从坐标修正表或地理编码API获取
+            if not coord:
+                coord = get_location_coord(
+                    city_clean,
+                    country_coords=self.country_coords,
+                    coord_corrections=self.coord_corrections,
+                    use_geocoding=self.use_geocoding
+                )
             
             if coord:
                 data.append({
@@ -94,6 +229,8 @@ class RiskReportParser:
                     "coord": coord,
                     "contrib": contrib
                 })
+            else:
+                print(f"警告: 无法获取 {city_clean} 的坐标，跳过该地点")
         return data
 
     def get_overall_risk(self):
@@ -291,7 +428,7 @@ def create_info_icon(concept_key):
         </div>
     </span>'''
 
-def generate_map(report_path, output_html, use_llm=True):
+def generate_map(report_path, output_html, use_llm=True, use_geocoding=True):
     """
     生成风险可视化地图
     
@@ -299,12 +436,13 @@ def generate_map(report_path, output_html, use_llm=True):
         report_path: 报告文件路径
         output_html: 输出 HTML 文件路径
         use_llm: 是否使用 LLM 提取数据（默认 True），False 则使用正则表达式
+        use_geocoding: 是否使用地理编码API自动获取未知地点的坐标（默认 True）
     
     返回:
         bool: 成功返回True，失败返回False
     """
     try:
-        parser = RiskReportParser(report_path)
+        parser = RiskReportParser(report_path, use_geocoding=use_geocoding)
     except FileNotFoundError as e:
         print(f"错误: {e}")
         return False
@@ -324,31 +462,40 @@ def generate_map(report_path, output_html, use_llm=True):
             gdp_list = []
             for item in llm_data.get('gdp_data', []):
                 location = item['location']
-                coord = parser.country_coords.get(location, [0, 0])
-                gdp_list.append({
-                    "location": location,
-                    "coord": coord,
-                    "gdp": int(item['current_gdp']),
-                    "key_risk": item.get('key_risk', '')
-                })
+                # 自动获取坐标（优先使用缓存和预设，失败则使用地理编码API）
+                coord = get_location_coord(
+                    location,
+                    country_coords=parser.country_coords,
+                    coord_corrections=parser.coord_corrections,
+                    use_geocoding=parser.use_geocoding
+                )
+                
+                if coord:
+                    gdp_list.append({
+                        "location": location,
+                        "coord": coord,
+                        "gdp": int(item['current_gdp']),
+                        "key_risk": item.get('key_risk', '')
+                    })
+                else:
+                    print(f"警告: 无法获取 {location} 的坐标，跳过该地点")
             
             ndp_list = []
-            # 坐标修正表
-            coord_corrections = {
-                "日本福岛": [37.75, 140.47],
-                "福岛": [37.75, 140.47],
-                "越南中部": [15.0, 108.0],
-                "德国莱茵河流域": [50.0, 8.0],
-                "莱茵河": [50.0, 8.0]
-            }
-            
             for item in llm_data.get('ndp_data', []):
                 city = item.get('city', '')
-                # 优先使用已知的正确坐标
-                if city in coord_corrections:
-                    coord = coord_corrections[city]
-                else:
-                    coord = parser.parse_dms(item.get('dms_coord', ''))
+                dms_coord = item.get('dms_coord', '')
+                
+                # 优先解析度分秒坐标
+                coord = parser.parse_dms(dms_coord) if dms_coord else None
+                
+                # 如果度分秒解析失败，尝试从坐标修正表或地理编码API获取
+                if not coord:
+                    coord = get_location_coord(
+                        city,
+                        country_coords=parser.country_coords,
+                        coord_corrections=parser.coord_corrections,
+                        use_geocoding=parser.use_geocoding
+                    )
                 
                 if coord:
                     ndp_list.append({
@@ -358,6 +505,8 @@ def generate_map(report_path, output_html, use_llm=True):
                         "coord": coord,
                         "contrib": item.get('contribution', f"{item['probability']}%")
                     })
+                else:
+                    print(f"警告: 无法获取 {city} 的坐标，跳过该地点")
             
             overall_risk = llm_data.get('overall_risk', '未知')
             gdp_overall = llm_data.get('gdp_overall')
@@ -1349,5 +1498,4 @@ def generate_map(report_path, output_html, use_llm=True):
         return False
 
 if __name__ == "__main__":
-    # 默认使用 LLM 自动识别，如需使用正则表达式，设置 use_llm=False
-    generate_map("research_assessment_manager_report.md", "honda_risk_viz.html", use_llm=True)
+    generate_map("research_assessment_manager_report.md", "honda_risk_viz.html", use_llm=True, use_geocoding=True)

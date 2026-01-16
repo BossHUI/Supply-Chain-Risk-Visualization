@@ -68,3 +68,7 @@ htmlcov/
 *.tmp
 *.temp
 .cache/
+
+
+测试动态坐标说明.md
+test_geocoding.py
