@@ -1497,5 +1497,353 @@ def generate_map(report_path, output_html, use_llm=True, use_geocoding=True):
         print(f"保存地图文件失败: {e}")
         return False
 
+def scan_reports_directory(reports_dir="reports"):
+    """
+    扫描reports目录，找到所有报告文件
+    
+    参数:
+        reports_dir: reports目录路径
+    
+    返回:
+        list: [(报告名称, 报告路径, 输出HTML路径), ...]
+    """
+    reports = []
+    
+    if not os.path.exists(reports_dir):
+        print(f"警告: reports目录不存在: {reports_dir}")
+        return reports
+    
+    # 遍历reports目录下的所有子目录
+    for item in os.listdir(reports_dir):
+        subdir_path = os.path.join(reports_dir, item)
+        
+        # 只处理目录
+        if os.path.isdir(subdir_path):
+            report_file = os.path.join(subdir_path, "research_assessment_manager_report.md")
+            
+            # 检查报告文件是否存在
+            if os.path.exists(report_file):
+                # 生成输出HTML文件名（使用子目录名）
+                output_html = os.path.join(reports_dir, item, f"{item}_map.html")
+                reports.append((item, report_file, output_html))
+                print(f"找到报告: {item}")
+    
+    return reports
+
+def generate_all_reports(reports_dir="reports", use_llm=True, use_geocoding=True):
+    """
+    批量生成所有报告的地图
+    
+    参数:
+        reports_dir: reports目录路径
+        use_llm: 是否使用LLM提取
+        use_geocoding: 是否使用地理编码API
+    
+    返回:
+        dict: {报告名称: 是否成功}
+    """
+    reports = scan_reports_directory(reports_dir)
+    results = {}
+    
+    if not reports:
+        print("未找到任何报告文件")
+        return results
+    
+    print(f"\n开始批量生成地图，共 {len(reports)} 个报告...")
+    print("=" * 60)
+    
+    for i, (name, report_path, output_html) in enumerate(reports, 1):
+        print(f"\n[{i}/{len(reports)}] 处理报告: {name}")
+        print("-" * 60)
+        
+        success = generate_map(report_path, output_html, use_llm=use_llm, use_geocoding=use_geocoding)
+        results[name] = success
+        
+        if success:
+            print(f"✓ 成功生成: {output_html}")
+        else:
+            print(f"✗ 生成失败: {name}")
+    
+    print("\n" + "=" * 60)
+    print("批量生成完成！")
+    print(f"成功: {sum(1 for v in results.values() if v)}/{len(results)}")
+    
+    return results
+
+def create_main_page(reports_dir="reports", output_file="index.html"):
+    """
+    创建主HTML页面，包含下拉框选择不同报告
+    
+    参数:
+        reports_dir: reports目录路径
+        output_file: 输出HTML文件路径
+    
+    返回:
+        bool: 成功返回True
+    """
+    reports = scan_reports_directory(reports_dir)
+    
+    if not reports:
+        print("未找到任何报告，无法创建主页面")
+        return False
+    
+    # 生成下拉框选项HTML
+    options_html = ""
+    for name, _, html_path in reports:
+        # 使用相对路径
+        relative_path = html_path.replace("\\", "/")
+        # 格式化日期显示（从目录名提取）
+        display_name = name.replace("_", " ").replace("-", "/")
+        options_html += f'<option value="{relative_path}">{display_name}</option>\n'
+    
+    # 默认选择第一个报告
+    default_report = reports[0][2].replace("\\", "/") if reports else ""
+    
+    # 创建主HTML页面
+    main_html = f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>供应链风险可视化 - 报告选择</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        
+        .container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }}
+        
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        
+        .header h1 {{
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }}
+        
+        .header p {{
+            font-size: 16px;
+            opacity: 0.9;
+        }}
+        
+        .selector-container {{
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }}
+        
+        .selector-wrapper {{
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }}
+        
+        .selector-wrapper label {{
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            white-space: nowrap;
+        }}
+        
+        .selector-wrapper select {{
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            color: #2c3e50;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }}
+        
+        .selector-wrapper select:hover {{
+            border-color: #667eea;
+        }}
+        
+        .selector-wrapper select:focus {{
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }}
+        
+        .map-container {{
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 250px);
+            min-height: 600px;
+            background: #f8f9fa;
+        }}
+        
+        .map-container iframe {{
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }}
+        
+        .loading {{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #667eea;
+            font-size: 18px;
+            z-index: 10;
+        }}
+        
+        .loading::after {{
+            content: '';
+            display: block;
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }}
+        
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        
+        .info-badge {{
+            display: inline-block;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }}
+        
+        @media (max-width: 768px) {{
+            .selector-wrapper {{
+                flex-direction: column;
+                align-items: stretch;
+            }}
+            
+            .selector-wrapper label {{
+                margin-bottom: 8px;
+            }}
+            
+            .map-container {{
+                height: calc(100vh - 300px);
+                min-height: 500px;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ 供应链风险可视化</h1>
+            <p>选择不同的报告查看对应的风险地图</p>
+            <div class="info-badge">共 {len(reports)} 个报告</div>
+        </div>
+        
+        <div class="selector-container">
+            <div class="selector-wrapper">
+                <label for="report-selector">选择报告：</label>
+                <select id="report-selector" onchange="loadReport(this.value)">
+                    {options_html}
+                </select>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="loading" class="loading" style="display: none;">
+                正在加载地图...
+            </div>
+            <iframe id="map-frame" src="{default_report}" frameborder="0"></iframe>
+        </div>
+    </div>
+    
+    <script>
+        function loadReport(reportPath) {{
+            const iframe = document.getElementById('map-frame');
+            const loading = document.getElementById('loading');
+            
+            // 显示加载动画
+            loading.style.display = 'block';
+            iframe.style.opacity = '0';
+            
+            // 加载新地图
+            iframe.onload = function() {{
+                loading.style.display = 'none';
+                iframe.style.opacity = '1';
+                iframe.style.transition = 'opacity 0.3s ease';
+            }};
+            
+            iframe.src = reportPath;
+        }}
+        
+        // 页面加载完成后的处理
+        window.addEventListener('load', function() {{
+            const iframe = document.getElementById('map-frame');
+            const loading = document.getElementById('loading');
+            
+            iframe.onload = function() {{
+                loading.style.display = 'none';
+                iframe.style.opacity = '1';
+            }};
+        }});
+    </script>
+</body>
+</html>'''
+    
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(main_html)
+        print(f"\n✓ 成功创建主页面: {output_file}")
+        return True
+    except Exception as e:
+        print(f"\n✗ 创建主页面失败: {e}")
+        return False
+
 if __name__ == "__main__":
-    generate_map("research_assessment_manager_report.md", "honda_risk_viz.html", use_llm=True, use_geocoding=True)
+    import sys
+    
+    # 检查命令行参数
+    if len(sys.argv) > 1 and sys.argv[1] == "--batch":
+        # 批量处理模式
+        print("=" * 60)
+        print("批量处理模式")
+        print("=" * 60)
+        
+        # 生成所有报告的地图
+        results = generate_all_reports(use_llm=True, use_geocoding=True)
+        
+        # 创建主页面
+        if any(results.values()):
+            create_main_page(output_file="index.html")
+            print("\n✓ 可以打开 index.html 查看所有报告")
+    else:
+        # 单文件处理模式（向后兼容）
+        generate_map("research_assessment_manager_report.md", "honda_risk_viz.html", use_llm=True, use_geocoding=True)
