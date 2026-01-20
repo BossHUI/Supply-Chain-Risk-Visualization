@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>供应链风险可视化 - 报告选择</title>
+    <title>风险报告可视化 - 索引</title>
     <style>
         * {
             margin: 0;
@@ -12,212 +12,343 @@
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
             background: white;
+            padding: 40px;
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            overflow: hidden;
         }
         
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
+        h1 {
+            color: #2c3e50;
             text-align: center;
-        }
-        
-        .header h1 {
-            font-size: 32px;
             margin-bottom: 10px;
-            font-weight: 600;
+            font-size: 32px;
         }
         
-        .header p {
-            font-size: 16px;
-            opacity: 0.9;
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 14px;
         }
         
-        .selector-container {
-            padding: 30px;
+        .selector-section {
+            margin-bottom: 30px;
+            padding: 25px;
             background: #f8f9fa;
-            border-bottom: 2px solid #e9ecef;
-        }
-        
-        .selector-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .selector-wrapper label {
-            font-size: 16px;
-            font-weight: 600;
-            color: #2c3e50;
-            white-space: nowrap;
-        }
-        
-        .selector-wrapper select {
-            flex: 1;
-            padding: 12px 20px;
-            font-size: 16px;
-            border: 2px solid #ddd;
             border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .selector-section label {
+            display: block;
+            font-weight: 600;
+            color: #34495e;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+        
+        .selector-section select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
             background: white;
-            color: #2c3e50;
+            color: #333;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-family: inherit;
         }
         
-        .selector-wrapper select:hover {
-            border-color: #667eea;
+        .selector-section select:hover {
+            border-color: #3498db;
         }
         
-        .selector-wrapper select:focus {
+        .selector-section select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
         }
         
-        .map-container {
-            position: relative;
+        .view-button {
+            display: block;
             width: 100%;
-            height: calc(100vh - 250px);
+            padding: 14px 20px;
+            margin-top: 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-decoration: none;
+        }
+        
+        .view-button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        .view-button:active {
+            transform: translateY(0);
+        }
+        
+        .iframe-container {
+            margin-top: 30px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: white;
             min-height: 600px;
-            background: #f8f9fa;
         }
         
-        .map-container iframe {
+        .iframe-container iframe {
             width: 100%;
-            height: 100%;
+            height: 800px;
             border: none;
             display: block;
         }
         
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+        .stats-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #ecf0f1;
+            border-radius: 8px;
+        }
+        
+        .stats-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
             text-align: center;
-            color: #667eea;
-            font-size: 18px;
-            z-index: 10;
         }
         
-        .loading::after {
-            content: '';
-            display: block;
-            width: 40px;
-            height: 40px;
-            margin: 20px auto;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .stat-item .number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 5px;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .info-badge {
-            display: inline-block;
-            padding: 6px 12px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 20px;
+        .stat-item .label {
             font-size: 14px;
-            margin-top: 10px;
+            color: #7f8c8d;
         }
         
-        @media (max-width: 768px) {
-            .selector-wrapper {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .selector-wrapper label {
-                margin-bottom: 8px;
-            }
-            
-            .map-container {
-                height: calc(100vh - 300px);
-                min-height: 500px;
-            }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #95a5a6;
+        }
+        
+        .empty-state .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🗺️ 供应链风险可视化</h1>
-            <p>选择不同的报告查看对应的风险地图</p>
-            <div class="info-badge">共 6 个报告</div>
-        </div>
+        <h1>📊 风险报告可视化</h1>
+        <p class="subtitle">选择报告查看详细的风险分析和可视化地图</p>
         
-        <div class="selector-container">
-            <div class="selector-wrapper">
-                <label for="report-selector">选择报告：</label>
-                <select id="report-selector" onchange="loadReport(this.value)">
-                    <option value="reports/2026-01-14_20-23-57/2026-01-14_20-23-57_map.html">2026/01/14 20/23/57</option>
-<option value="reports/2026-01-15_17-23-59/2026-01-15_17-23-59_map.html">2026/01/15 17/23/59</option>
-<option value="reports/2026-01-16_10-58-13/2026-01-16_10-58-13_map.html">2026/01/16 10/58/13</option>
-<option value="reports/2026-01-16_14-49-03/2026-01-16_14-49-03_map.html">2026/01/16 14/49/03</option>
-<option value="reports/2026-01-16_14-56-34/2026-01-16_14-56-34_map.html">2026/01/16 14/56/34</option>
-<option value="reports/2026-01-16_16-08-49/2026-01-16_16-08-49_map.html">2026/01/16 16/08/49</option>
+        <div class="selector-section">
+            <label for="report-selector">选择报告：</label>
+            <select id="report-selector">
+                <option value="">-- 请选择报告 --</option>
+                <option value="reports/2026-01-16_16-08-49/report_visualization.html">2026-01-16 16:08:49 - 安世供应链外部风险评估报告 (5个风险)</option>
+<option value="reports/2026-01-16_14-56-34/report_visualization.html">2026-01-16 14:56:34 - 比亚迪供应链风险评估报告 (5个风险)</option>
+<option value="reports/2026-01-16_14-49-03/report_visualization.html">2026-01-16 14:49:03 - 大众汽车供应链风险评估报告 (6个风险)</option>
+<option value="reports/2026-01-16_10-58-13/report_visualization.html">2026-01-16 10:58:13 - 本田汽车供应链风险评估报告 (7个风险)</option>
+<option value="reports/2026-01-15_17-23-59/report_visualization.html">2026-01-15 17:23:59 - 本田汽车供应链风险评估报告 (5个风险)</option>
+<option value="reports/2026-01-14_20-23-57/report_visualization.html">2026-01-14 20:23:57 - 本田汽车供应链风险评估报告 (7个风险)</option>
 
-                </select>
-            </div>
+            </select>
+            <a href="#" id="view-button" class="view-button" style="display: none;">查看报告</a>
         </div>
         
-        <div class="map-container">
-            <div id="loading" class="loading" style="display: none;">
-                正在加载地图...
+        <div id="iframe-container" class="iframe-container" style="display: none;">
+            <iframe id="report-frame" src=""></iframe>
+        </div>
+        
+        <div class="stats-section" id="stats-section" style="display: none;">
+            <h3>📈 报告统计</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="number" id="total-reports">0</div>
+                    <div class="label">总报告数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number" id="total-risks">0</div>
+                    <div class="label">总风险数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number" id="avg-risks">0</div>
+                    <div class="label">平均风险数</div>
+                </div>
             </div>
-            <iframe id="map-frame" src="reports/2026-01-14_20-23-57/2026-01-14_20-23-57_map.html" frameborder="0"></iframe>
         </div>
     </div>
     
     <script>
-        function loadReport(reportPath) {
-            const iframe = document.getElementById('map-frame');
-            const loading = document.getElementById('loading');
+        const reportData = [
+  {
+    "folder": "2026-01-16_16-08-49",
+    "title": "安世供应链外部风险评估报告",
+    "date": "2026-01-16",
+    "time": "16:08:49",
+    "datetime": "2026-01-16 16:08:49",
+    "datetime_sort": "2026-01-16_16-08-49",
+    "display_date": "2026-01-16 16:08:49",
+    "author": "安世供应链风险识别专家",
+    "risk_count": 5,
+    "html_path": "reports\\2026-01-16_16-08-49\\report_visualization.html",
+    "relative_path": "reports/2026-01-16_16-08-49/report_visualization.html"
+  },
+  {
+    "folder": "2026-01-16_14-56-34",
+    "title": "比亚迪供应链风险评估报告",
+    "date": "2026-01-16",
+    "time": "14:56:34",
+    "datetime": "2026-01-16 14:56:34",
+    "datetime_sort": "2026-01-16_14-56-34",
+    "display_date": "2026-01-16 14:56:34",
+    "author": "比亚迪供应链风险评估专家**",
+    "risk_count": 5,
+    "html_path": "reports\\2026-01-16_14-56-34\\report_visualization.html",
+    "relative_path": "reports/2026-01-16_14-56-34/report_visualization.html"
+  },
+  {
+    "folder": "2026-01-16_14-49-03",
+    "title": "大众汽车供应链风险评估报告",
+    "date": "2026-01-16",
+    "time": "14:49:03",
+    "datetime": "2026-01-16 14:49:03",
+    "datetime_sort": "2026-01-16_14-49-03",
+    "display_date": "2026-01-16 14:49:03",
+    "author": "大众汽车供应链风险评估专家",
+    "risk_count": 6,
+    "html_path": "reports\\2026-01-16_14-49-03\\report_visualization.html",
+    "relative_path": "reports/2026-01-16_14-49-03/report_visualization.html"
+  },
+  {
+    "folder": "2026-01-16_10-58-13",
+    "title": "本田汽车供应链风险评估报告",
+    "date": "2026-01-16",
+    "time": "10:58:13",
+    "datetime": "2026-01-16 10:58:13",
+    "datetime_sort": "2026-01-16_10-58-13",
+    "display_date": "2026-01-16 10:58:13",
+    "author": "未知",
+    "risk_count": 7,
+    "html_path": "reports\\2026-01-16_10-58-13\\report_visualization.html",
+    "relative_path": "reports/2026-01-16_10-58-13/report_visualization.html"
+  },
+  {
+    "folder": "2026-01-15_17-23-59",
+    "title": "本田汽车供应链风险评估报告",
+    "date": "2026-01-15",
+    "time": "17:23:59",
+    "datetime": "2026-01-15 17:23:59",
+    "datetime_sort": "2026-01-15_17-23-59",
+    "display_date": "2026-01-15 17:23:59",
+    "author": "未知",
+    "risk_count": 5,
+    "html_path": "reports\\2026-01-15_17-23-59\\report_visualization.html",
+    "relative_path": "reports/2026-01-15_17-23-59/report_visualization.html"
+  },
+  {
+    "folder": "2026-01-14_20-23-57",
+    "title": "本田汽车供应链风险评估报告",
+    "date": "2026-01-14",
+    "time": "20:23:57",
+    "datetime": "2026-01-14 20:23:57",
+    "datetime_sort": "2026-01-14_20-23-57",
+    "display_date": "2026-01-14 20:23:57",
+    "author": "本田汽车供应链风险识别专家",
+    "risk_count": 7,
+    "html_path": "reports\\2026-01-14_20-23-57\\report_visualization.html",
+    "relative_path": "reports/2026-01-14_20-23-57/report_visualization.html"
+  }
+];
+        
+        const selector = document.getElementById('report-selector');
+        const viewButton = document.getElementById('view-button');
+        const iframeContainer = document.getElementById('iframe-container');
+        const reportFrame = document.getElementById('report-frame');
+        const statsSection = document.getElementById('stats-section');
+        
+        // 更新统计信息
+        function updateStats() {
+            const totalReports = reportData.length;
+            const totalRisks = reportData.reduce((sum, r) => sum + (r.risk_count || 0), 0);
+            const avgRisks = totalReports > 0 ? Math.round(totalRisks / totalReports) : 0;
             
-            // 显示加载动画
-            loading.style.display = 'block';
-            iframe.style.opacity = '0';
+            document.getElementById('total-reports').textContent = totalReports;
+            document.getElementById('total-risks').textContent = totalRisks;
+            document.getElementById('avg-risks').textContent = avgRisks;
             
-            // 加载新地图
-            iframe.onload = function() {
-                loading.style.display = 'none';
-                iframe.style.opacity = '1';
-                iframe.style.transition = 'opacity 0.3s ease';
-            };
-            
-            iframe.src = reportPath;
+            statsSection.style.display = 'block';
         }
         
-        // 页面加载完成后的处理
-        window.addEventListener('load', function() {
-            const iframe = document.getElementById('map-frame');
-            const loading = document.getElementById('loading');
-            
-            iframe.onload = function() {
-                loading.style.display = 'none';
-                iframe.style.opacity = '1';
-            };
+        // 选择报告
+        selector.addEventListener('change', function() {
+            const selectedValue = this.value;
+            if (selectedValue) {
+                viewButton.style.display = 'block';
+                viewButton.href = selectedValue;
+                viewButton.textContent = '查看报告 →';
+            } else {
+                viewButton.style.display = 'none';
+                iframeContainer.style.display = 'none';
+            }
         });
+        
+        // 查看报告
+        viewButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            const selectedValue = selector.value;
+            if (selectedValue) {
+                reportFrame.src = selectedValue;
+                iframeContainer.style.display = 'block';
+                // 滚动到iframe
+                iframeContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+        
+        // 初始化统计信息
+        updateStats();
     </script>
 </body>
 </html>
